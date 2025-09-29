@@ -1,0 +1,3 @@
+# Production dependencies for Rekordbox Streaming Tag Exporter
+pyrekordbox>=0.3.0
+click>=8.0

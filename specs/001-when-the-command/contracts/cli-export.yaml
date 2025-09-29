@@ -1,0 +1,155 @@
+# CLI Contract: Export Command
+
+command: rekordbox-export
+version: 1.0.0
+description: Export Rekordbox streaming tracks filtered by tags to CSV
+
+arguments:
+  - name: output
+    type: string
+    required: false
+    default: "rekordbox_export.csv"
+    description: Path to output CSV file
+    validation:
+      - Must have .csv extension
+      - Parent directory must exist
+
+options:
+  - name: --database
+    short: -d
+    type: path
+    required: false
+    default: auto-detect
+    description: Path to Rekordbox database file
+    validation:
+      - File must exist
+      - Must be valid Rekordbox database
+  
+  - name: --no-interactive
+    short: -n
+    type: boolean
+    required: false
+    default: false
+    description: Fail if interactive input required (for CI/automation)
+  
+  - name: --tags
+    short: -t
+    type: list[string]
+    required: false
+    description: Pre-select tags by name (skips interactive selection)
+    validation:
+      - At least one tag must be specified
+      - Tags must exist in database
+  
+  - name: --overwrite
+    short: -f
+    type: boolean
+    required: false
+    default: false
+    description: Overwrite existing output file without confirmation
+  
+  - name: --limit
+    short: -l
+    type: integer
+    required: false
+    description: Limit number of tracks exported (for testing)
+    validation:
+      - Must be positive integer
+  
+  - name: --verbose
+    short: -v
+    type: boolean
+    required: false
+    default: false
+    description: Show detailed progress information
+
+interactive_flow:
+  1_database_detection:
+    description: Auto-detect or prompt for Rekordbox database location
+    fallback: Check standard locations for each OS
+    error_states:
+      - DATABASE_NOT_FOUND: No Rekordbox database found
+      - DATABASE_LOCKED: Database is currently in use
+  
+  2_tag_selection:
+    description: Display checkbox list of available tags
+    prompt: "Select tags to filter by (space to select, enter to confirm):"
+    validation:
+      - At least one tag must be selected
+    error_states:
+      - NO_TAGS_IN_DATABASE: Database contains no tags
+      - NO_TAGS_SELECTED: User must select at least one tag
+  
+  3_export_confirmation:
+    description: Confirm export parameters
+    prompt: "Export {track_count} tracks to {output_path}? (y/n)"
+    skip_if: --overwrite flag provided
+    error_states:
+      - FILE_EXISTS: Output file already exists
+  
+  4_export_execution:
+    description: Filter tracks and write to CSV
+    progress: Show progress bar if --verbose
+    error_states:
+      - NO_MATCHING_TRACKS: No streaming tracks match selected tags
+      - WRITE_ERROR: Cannot write to output file
+
+exit_codes:
+  0: Success - export completed
+  1: General error
+  2: Database not found or inaccessible
+  3: No tags selected (validation error)
+  4: No matching tracks found
+  5: File write error
+  130: User cancelled (Ctrl+C)
+
+output_format:
+  success:
+    stdout: |
+      ✓ Exported {count} tracks to {file}
+      Tags used: {tag_list}
+    stderr: null
+  
+  error:
+    stdout: null
+    stderr: |
+      Error: {error_message}
+      {help_text}
+  
+  verbose:
+    stdout: |
+      Loading database from {path}...
+      Found {tag_count} tags
+      Filtering {track_count} tracks...
+      Found {streaming_count} streaming tracks
+      Matching against selected tags...
+      Writing CSV file...
+      ✓ Export complete
+
+csv_output:
+  encoding: utf-8-sig  # BOM for Excel compatibility
+  delimiter: ","
+  quoting: minimal  # Only quote when needed
+  headers:
+    - ID
+    - Artist
+    - Title
+  empty_field_handling: blank  # Leave empty, don't use placeholder
+  notes: ID field contains unique track identifier from Rekordbox database for future reference
+  
+examples:
+  basic:
+    command: rekordbox-export
+    description: Interactive mode with default output
+  
+  with_output:
+    command: rekordbox-export my_tracks.csv
+    description: Interactive mode with custom output file
+  
+  automated:
+    command: rekordbox-export --tags "Deep House" "Techno" -f output.csv
+    description: Non-interactive with pre-selected tags
+  
+  testing:
+    command: rekordbox-export --limit 100 -v test.csv
+    description: Export first 100 matching tracks with verbose output

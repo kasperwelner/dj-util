@@ -1,0 +1,12 @@
+# Development dependencies
+-r requirements.txt
+
+# Testing
+pytest>=7.0
+pytest-cov
+
+# Code quality
+black
+ruff
+mypy
+pre-commit
