@@ -88,6 +88,7 @@ rekordbox-export --db-path ~/Library/Pioneer/rekordbox/master.db
 ## CSV Output Format
 
 The exported CSV contains:
+- **id**: Track ID from Rekordbox database (for traceability)
 - **artist**: Track artist name
 - **title**: Track title  
 - **streaming**: Whether it's a streaming track (Yes/No)

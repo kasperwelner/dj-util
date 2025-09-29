@@ -75,9 +75,10 @@ class Track:
     def to_csv_row(self) -> dict:
         """Convert track to CSV row format."""
         return {
-            'ID': str(self.id),
-            'Artist': self.artist or '',
-            'Title': self.title or ''
+            'id': str(self.id),
+            'artist': self.artist or '',
+            'title': self.title or '',
+            'streaming': 'Yes' if self.is_streaming else 'No'
         }
     
     def __str__(self) -> str:

@@ -52,8 +52,8 @@ class CSVExporter:
         try:
             # Write CSV with UTF-8-sig encoding for Excel compatibility
             with open(output_file, 'w', newline='', encoding='utf-8-sig') as csvfile:
-                # Define field names
-                fieldnames = ['artist', 'title', 'streaming']
+                # Define field names - include ID for traceability
+                fieldnames = ['id', 'artist', 'title', 'streaming']
                 
                 # Create DictWriter
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -64,6 +64,7 @@ class CSVExporter:
                 # Write track data
                 for track in tracks:
                     writer.writerow({
+                        'id': track.id,
                         'artist': track.artist or '',
                         'title': track.title or '',
                         'streaming': 'Yes' if track.is_streaming else 'No'
