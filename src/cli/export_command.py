@@ -28,8 +28,8 @@ from src.lib.progress import (
 @click.option(
     '--output', '-o',
     type=click.Path(),
-    default='rekordbox_export.csv',
-    help='Output CSV file path'
+    default=None,
+    help='Output CSV file path (auto-generated from tags if not specified)'
 )
 @click.option(
     '--limit',
@@ -87,14 +87,7 @@ def export_command(
     if not quiet:
         click.echo(f"Using database: {db_path}")
     
-    # Validate output path
-    is_valid, out_result = validate_output_path(output)
-    if not is_valid:
-        click.echo(f"Error: {out_result}", err=True)
-        sys.exit(1)
-    
-    if "Warning:" in out_result and not quiet:
-        click.echo(out_result)
+    # Output path will be validated after we know the tags (for auto-naming)
     
     # Validate limit
     if limit is not None:
@@ -185,6 +178,28 @@ def export_command(
         if not tracks:
             click.echo("No streaming tracks found with selected tags", err=True)
             sys.exit(1)
+        
+        # Generate output filename if not specified
+        if output is None:
+            if all_tags:
+                output = exporter.get_default_filename(["all_streaming"])
+            elif selected_tags:
+                tag_names = [tag.name for tag in selected_tags]
+                output = exporter.get_default_filename(tag_names)
+            else:
+                output = exporter.get_default_filename([])
+            
+            if not quiet:
+                click.echo(f"Output file: {output}")
+        
+        # Now validate the output path
+        is_valid, out_result = validate_output_path(output)
+        if not is_valid:
+            click.echo(f"Error: {out_result}", err=True)
+            sys.exit(1)
+        
+        if "Warning:" in out_result and not quiet:
+            click.echo(out_result)
         
         # Apply limit if specified
         if limit and limit < len(tracks):

@@ -61,7 +61,7 @@ rekordbox-export [OPTIONS]
 
 Options:
   --db-path PATH     Path to Rekordbox database (auto-detected if not specified)
-  -o, --output PATH  Output CSV file path (default: rekordbox_export.csv)
+  -o, --output PATH  Output CSV file path (auto-generated from tags if not specified)
   --limit INTEGER    Limit number of tracks exported (for testing)
   --all-tags         Export all streaming tracks without tag filtering
   --tags TEXT        Specify tag names to filter (can be used multiple times)
@@ -69,17 +69,28 @@ Options:
   --help             Show help message
 ```
 
+### Auto-Generated Filenames
+
+When no output file is specified, filenames are automatically generated based on selected tags:
+- No tags: `rekordbox_export_YYYYMMDD_HHMMSS.csv`
+- All tags: `rekordbox_all_streaming_YYYYMMDD_HHMMSS.csv`
+- Specific tags: `rekordbox_tag1_tag2_tag3_YYYYMMDD_HHMMSS.csv`
+- More than 3 tags: `rekordbox_tag1_tag2_tag3_and_more_YYYYMMDD_HHMMSS.csv`
+
 ### Examples
 
 ```bash
-# Export all streaming tracks
+# Export all streaming tracks (auto-named: rekordbox_all_streaming_*.csv)
 rekordbox-export --all-tags
 
-# Export with specific tags
-rekordbox-export --tags "House" --tags "Techno" -o house_techno.csv
+# Export with specific tags (auto-named: rekordbox_house_techno_*.csv)
+rekordbox-export --tags "House" --tags "Techno"
+
+# Export with custom output file
+rekordbox-export --tags "House" --tags "Techno" -o my_house_tracks.csv
 
 # Quick test with limit
-rekordbox-export --all-tags --limit 100 -o test.csv
+rekordbox-export --all-tags --limit 100
 
 # Specify database path manually
 rekordbox-export --db-path ~/Library/Pioneer/rekordbox/master.db

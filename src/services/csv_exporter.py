@@ -153,14 +153,28 @@ class CSVExporter:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         if tag_names:
-            # Sanitize tag names for filename
+            # Special case for common tag groups
+            if tag_names == ["all_streaming"]:
+                return f"rekordbox_all_streaming_{timestamp}.csv"
+            
+            # Sanitize and abbreviate tag names for filename
             safe_tags = []
             for tag in tag_names[:3]:  # Limit to first 3 tags
-                safe_tag = "".join(c for c in tag if c.isalnum() or c in (' ', '-', '_'))
+                # Remove special characters and spaces
+                safe_tag = "".join(c for c in tag if c.isalnum() or c in ('-', '_'))
+                if not safe_tag:
+                    safe_tag = "tag"
+                # Abbreviate long tag names
+                if len(safe_tag) > 15:
+                    safe_tag = safe_tag[:15]
                 safe_tags.append(safe_tag.strip())
             
             if safe_tags:
-                tag_part = "_".join(safe_tags).replace(" ", "_")
-                return f"rekordbox_export_{tag_part}_{timestamp}.csv"
+                # Join with underscores, convert spaces to underscores
+                tag_part = "_".join(safe_tags).replace(" ", "_").lower()
+                # Add "and_more" if there are more than 3 tags
+                if len(tag_names) > 3:
+                    tag_part += "_and_more"
+                return f"rekordbox_{tag_part}_{timestamp}.csv"
         
         return f"rekordbox_export_{timestamp}.csv"
