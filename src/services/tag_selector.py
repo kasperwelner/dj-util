@@ -41,35 +41,84 @@ class TagSelector:
         try:
             import click
             
-            # Display instructions
-            click.echo("\nSelect tags using SPACE, navigate with UP/DOWN, confirm with ENTER")
-            click.echo("Press 'a' to select all, 'n' to select none, 'q' to quit\n")
+            # Display available tags with numbers
+            click.echo("\n" + "="*50)
+            click.echo("AVAILABLE TAGS:")
+            click.echo("="*50)
             
-            # Simple implementation using click's choice
-            # In a real implementation, we'd use a proper TUI library like curses or prompt_toolkit
-            selected_names = click.prompt(
-                "Select tags (comma-separated)",
+            # Use compact display if more than 20 tags
+            if len(tags) > 20:
+                click.echo("")
+                # Show in columns
+                for i in range(0, len(tags), 3):
+                    row = []
+                    for j in range(3):
+                        if i + j < len(tags):
+                            tag = tags[i + j]
+                            num = i + j + 1
+                            row.append(f"{num:2}. {tag.name[:20]:<20}")
+                    click.echo("  " + "  ".join(row))
+                click.echo("")
+            else:
+                for i, tag in enumerate(tags, 1):
+                    # Show selection state if preselected
+                    marker = "[✓]" if tag.id in self.selection.selected_ids else "[ ]" 
+                    # Show track count if available
+                    count_str = f" ({tag.track_count} tracks)" if tag.track_count else ""
+                    click.echo(f"{marker} {i:3}. {tag.name}{count_str}")
+            
+            click.echo("\n" + "="*50)
+            click.echo("Enter tag numbers separated by commas (e.g., 1,3,5)")
+            click.echo("Or enter tag names (e.g., House, Techno)")
+            click.echo("Enter 'all' to select all tags, or press Enter to skip")
+            click.echo("="*50)
+            
+            selection = click.prompt(
+                "\nYour selection",
                 default="",
                 type=str,
                 show_default=False
             )
             
-            if not selected_names.strip():
+            if not selection.strip():
                 return []
             
-            # Parse selection
-            selected_set = set(name.strip() for name in selected_names.split(','))
-            return [tag for tag in tags if tag.name in selected_set]
+            if selection.lower() == 'all':
+                return tags
+            
+            selected_tags = []
+            
+            # Try to parse as numbers first
+            try:
+                indices = [int(x.strip()) - 1 for x in selection.split(',')]
+                for i in indices:
+                    if 0 <= i < len(tags):
+                        selected_tags.append(tags[i])
+            except ValueError:
+                # Parse as tag names
+                selected_names = set(name.strip() for name in selection.split(','))
+                selected_tags = [tag for tag in tags if tag.name in selected_names]
+            
+            return selected_tags
             
         except ImportError:
             # Fallback to simple input if click not available
-            print("\nAvailable tags:")
-            for i, tag in enumerate(tags, 1):
-                selected = "(selected)" if tag.id in self.selection.selected_ids else ""
-                print(f"  {i}. {tag.name} {selected}")
+            print("\n" + "="*50)
+            print("AVAILABLE TAGS:")
+            print("="*50)
             
-            print("\nEnter tag numbers separated by commas (e.g., 1,3,5) or 'all' for all tags:")
-            selection = input("> ").strip()
+            for i, tag in enumerate(tags, 1):
+                marker = "[✓]" if tag.id in self.selection.selected_ids else "[ ]"
+                count_str = f" ({tag.track_count} tracks)" if tag.track_count else ""
+                print(f"{marker} {i:3}. {tag.name}{count_str}")
+            
+            print("\n" + "="*50)
+            print("Enter tag numbers separated by commas (e.g., 1,3,5)")
+            print("Or enter tag names (e.g., House, Techno)")
+            print("Enter 'all' to select all tags, or press Enter to skip")
+            print("="*50)
+            
+            selection = input("\nYour selection: ").strip()
             
             if selection.lower() == 'all':
                 return tags
@@ -77,12 +126,23 @@ class TagSelector:
             if not selection:
                 return []
             
+            selected_tags = []
+            
+            # Try to parse as numbers first
             try:
                 indices = [int(x.strip()) - 1 for x in selection.split(',')]
-                return [tags[i] for i in indices if 0 <= i < len(tags)]
-            except (ValueError, IndexError):
-                print("Invalid selection")
-                return []
+                for i in indices:
+                    if 0 <= i < len(tags):
+                        selected_tags.append(tags[i])
+            except ValueError:
+                # Parse as tag names
+                selected_names = set(name.strip() for name in selection.split(','))
+                selected_tags = [tag for tag in tags if tag.name in selected_names]
+            
+            if not selected_tags:
+                print("No valid tags selected")
+            
+            return selected_tags
     
     def display_summary(self, selected_tags: List[MyTag]) -> None:
         """Display summary of selected tags.
