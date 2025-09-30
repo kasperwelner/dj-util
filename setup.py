@@ -1,17 +1,17 @@
-"""Setup configuration for Rekordbox Streaming Tag Exporter."""
+"""Setup configuration for Rekordbox."""
 from setuptools import setup, find_packages
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="rekordbox-tag-exporter",
+    name="rekordbox",
     version="0.1.0",
     author="DJ Tools",
     description="Export Rekordbox streaming tracks filtered by tags to CSV",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/rekordbox-tag-exporter",
+    url="https://github.com/yourusername/rekordbox",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     classifiers=[
@@ -41,7 +41,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "rekordbox-export=cli.export_command:main",
+            "rekordbox=cli.export_command:main",
         ],
     },
 )

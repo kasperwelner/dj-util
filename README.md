@@ -1,4 +1,4 @@
-# Rekordbox Streaming Tag Exporter
+# Rekordbox
 
 Export streaming tracks from your Rekordbox library filtered by tags to CSV format.
 
@@ -24,7 +24,7 @@ Export streaming tracks from your Rekordbox library filtered by tags to CSV form
 ```bash
 # Clone repository
 git clone <repository-url>
-cd specify-test
+cd rekordbox
 
 # Create virtual environment
 python3 -m venv venv
@@ -48,16 +48,16 @@ pip install -r requirements-dev.txt
 
 ```bash
 # Interactive tag selection
-python -m src.cli rekordbox-export
+python -m src.cli
 
 # Or if installed:
-rekordbox-export
+rekordbox
 ```
 
 ### Command Options
 
 ```bash
-rekordbox-export [OPTIONS]
+rekordbox [OPTIONS]
 
 Options:
   --db-path PATH     Path to Rekordbox database (auto-detected if not specified)
@@ -81,19 +81,19 @@ When no output file is specified, filenames are automatically generated based on
 
 ```bash
 # Export all streaming tracks (auto-named: rekordbox_all_streaming_*.csv)
-rekordbox-export --all-tags
+rekordbox --all-tags
 
 # Export with specific tags (auto-named: rekordbox_house_techno_*.csv)
-rekordbox-export --tags "House" --tags "Techno"
+rekordbox --tags "House" --tags "Techno"
 
 # Export with custom output file
-rekordbox-export --tags "House" --tags "Techno" -o my_house_tracks.csv
+rekordbox --tags "House" --tags "Techno" -o my_house_tracks.csv
 
 # Quick test with limit
-rekordbox-export --all-tags --limit 100
+rekordbox --all-tags --limit 100
 
 # Specify database path manually
-rekordbox-export --db-path ~/Library/Pioneer/rekordbox/master.db
+rekordbox --db-path ~/Library/Pioneer/rekordbox/master.db
 ```
 
 ## CSV Output Format
@@ -111,7 +111,7 @@ Files use UTF-8 with BOM encoding for Excel compatibility.
 ### Database not found
 ```bash
 # Specify database path manually
-rekordbox-export --db-path /path/to/master.db
+rekordbox --db-path /path/to/master.db
 ```
 
 Common locations:

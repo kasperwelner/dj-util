@@ -3,7 +3,7 @@ requires = ["setuptools>=65", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rekordbox-tag-exporter"
+name = "rekordbox"
 version = "0.1.0"
 description = "Export Rekordbox streaming tracks filtered by tags to CSV"
 readme = "README.md"
@@ -38,7 +38,7 @@ dev = [
 ]
 
 [project.scripts]
-rekordbox-export = "cli.export_command:main"
+rekordbox = "cli.export_command:main"
 
 [tool.black]
 line-length = 88
