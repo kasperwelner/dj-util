@@ -6,7 +6,7 @@ Export streaming tracks from your Rekordbox library filtered by tags to CSV form
 
 - 🎵 Export streaming tracks from Rekordbox database
 - 🏷️ Interactive tag selection from your Rekordbox database
-- 🔍 Filter to only streaming service tracks (Beatport LINK, Tidal, etc.)
+- 🔍 Filter only streaming service tracks (Beatport LINK, Tidal, etc.)
 - 📊 Export to CSV with artist and title information
 - 🌍 Full Unicode support for international tracks
 - 🚀 Fast performance (<5 seconds for 10k tracks)
