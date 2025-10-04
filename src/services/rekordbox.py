@@ -25,6 +25,7 @@ class RekordboxAdapter:
         self.db: Optional[Rekordbox6Database] = None
         self.error_message: str = ""
         self.connected: bool = False
+        self.db_path: Optional[str] = None  # Store the database path
     
     def connect(self, db_path: Optional[str] = None) -> bool:
         """Connect to Rekordbox database.
@@ -63,6 +64,7 @@ class RekordboxAdapter:
         
         try:
             self.db = Rekordbox6Database(db_path)
+            self.db_path = db_path  # Store the path for later use
             self.connected = True
             return True
         except Exception as e:
@@ -263,6 +265,228 @@ class RekordboxAdapter:
             file_size=content.FileSize or 0,
             my_tag_ids=tag_ids
         )
+    
+    def get_track_by_id(self, track_id: int) -> Optional[Track]:
+        """Fetch a single track by Rekordbox ID.
+        
+        Args:
+            track_id: Rekordbox track ID
+            
+        Returns:
+            Track object if found, None otherwise
+        """
+        if not self.connected or self.db is None:
+            return None
+        
+        try:
+            # Get all content from database
+            all_content = list(self.db.get_content())
+            
+            # Convert track_id to int to ensure type match
+            search_id = int(track_id)
+            
+            for content in all_content:
+                # Ensure both IDs are integers for comparison
+                content_id = int(content.ID) if content.ID is not None else None
+                if content_id == search_id:
+                    return self._content_to_track(content)
+            
+            # If not found, set error message for debugging
+            self.error_message = f"Track ID {track_id} not found in database (searched {len(all_content)} tracks)"
+            return None
+        except Exception as e:
+            self.error_message = f"Failed to get track by ID: {str(e)}"
+            return None
+    
+    def backup_database(self, backup_path: Optional[Path] = None) -> Optional[Path]:
+        """Create timestamped backup of database file.
+        
+        Args:
+            backup_path: Optional custom backup path. If None, creates in same dir as DB.
+            
+        Returns:
+            Path to backup file if successful, None otherwise
+        """
+        if not self.db or not self.db_path:
+            self.error_message = "No database connection"
+            return None
+        
+        try:
+            from datetime import datetime
+            import shutil
+            
+            # Use stored database path
+            db_path = Path(self.db_path)
+            
+            # Generate backup filename
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            if backup_path:
+                backup_file = Path(backup_path)
+            else:
+                backup_file = db_path.parent / f"{db_path.stem}.backup.{timestamp}{db_path.suffix}"
+            
+            # Copy database file
+            shutil.copy2(db_path, backup_file)
+            
+            return backup_file
+        except Exception as e:
+            self.error_message = f"Failed to backup database: {str(e)}"
+            return None
+    
+    def update_track_to_local(
+        self,
+        track_id: int,
+        file_path: Path,
+        file_size: int
+    ) -> bool:
+        """Update a streaming track to reference a local file.
+        
+        Updates:
+        - FolderPath: Set to absolute file path (NFC normalized)
+        - FileSize: Set to actual file size in bytes
+        - ServiceID: Set to 0 (clear streaming flag)
+        
+        Args:
+            track_id: Rekordbox track ID
+            file_path: Absolute path to local file
+            file_size: File size in bytes
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.connected or self.db is None:
+            self.error_message = "No database connection"
+            return False
+        
+        try:
+            # Convert path to string (NFC normalized)
+            import unicodedata
+            path_str = unicodedata.normalize('NFC', str(file_path))
+            
+            # Access underlying SQLite connection through SQLAlchemy engine
+            if not hasattr(self.db, 'engine'):
+                self.error_message = "Could not access database engine for writes"
+                return False
+            
+            # Get raw connection from SQLAlchemy engine
+            conn = self.db.engine.raw_connection()
+            
+            # Execute UPDATE query
+            cursor = conn.cursor()
+            
+            # Update DjmdContent table
+            update_query = """
+                UPDATE djmdContent 
+                SET FolderPath = ?,
+                    FileSize = ?,
+                    ServiceID = 0
+                WHERE ID = ?
+            """
+            
+            cursor.execute(update_query, (path_str, file_size, track_id))
+            conn.commit()
+            
+            # Verify update worked
+            if cursor.rowcount != 1:
+                self.error_message = f"Update affected {cursor.rowcount} rows, expected 1"
+                return False
+            
+            return True
+            
+        except Exception as e:
+            self.error_message = f"Failed to update track: {str(e)}"
+            # Try to rollback if possible
+            try:
+                if conn:
+                    conn.rollback()
+            except:
+                pass
+            return False
+    
+    def is_streaming_track(self, track_id: int) -> bool:
+        """Check if track is currently a streaming track.
+        
+        Args:
+            track_id: Rekordbox track ID
+            
+        Returns:
+            True if track is streaming, False otherwise
+        """
+        track = self.get_track_by_id(track_id)
+        if not track:
+            return False
+        return track.is_streaming
+    
+    def force_reanalyze(self, track_id: int) -> bool:
+        """Force Rekordbox to re-analyze a track by clearing analysis data.
+        
+        This clears analysis-related fields in the database, which will cause
+        Rekordbox to re-analyze the track when it's next loaded.
+        
+        Clears:
+        - AnalysisDataPath: Path to analysis files
+        - BeatGridCount: Beat grid data count
+        - Other analysis flags
+        
+        Args:
+            track_id: Rekordbox track ID
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.connected or self.db is None:
+            self.error_message = "No database connection"
+            return False
+        
+        try:
+            # Access underlying SQLite connection through SQLAlchemy engine
+            if not hasattr(self.db, 'engine'):
+                self.error_message = "Could not access database engine for writes"
+                return False
+            
+            # Get raw connection from SQLAlchemy engine
+            conn = self.db.engine.raw_connection()
+            cursor = conn.cursor()
+            
+            # First, verify the track exists
+            cursor.execute("SELECT ID FROM djmdContent WHERE ID = ?", (track_id,))
+            if not cursor.fetchone():
+                self.error_message = f"Track ID {track_id} not found in database"
+                return False
+            
+            # Clear analysis data fields
+            # Fields that exist in Rekordbox 6 database:
+            # - AnalysisDataPath: Path to .DAT/.EXT files
+            # - Analysed: Flag indicating if track has been analyzed (0 = not analyzed)
+            # - SearchStr: Cached search string
+            # - AnalysisUpdated: Timestamp of last analysis update
+            update_query = """
+                UPDATE djmdContent 
+                SET AnalysisDataPath = '',
+                    Analysed = 0,
+                    SearchStr = '',
+                    AnalysisUpdated = ''
+                WHERE ID = ?
+            """
+            
+            cursor.execute(update_query, (track_id,))
+            conn.commit()
+            
+            # Verify update worked
+            if cursor.rowcount == 1:
+                return True
+            else:
+                self.error_message = f"Update affected {cursor.rowcount} rows, expected 1"
+                return False
+            
+        except Exception as e:
+            self.error_message = f"Failed to force re-analyze: {str(e)}"
+            try:
+                if conn:
+                    conn.rollback()
+            except:
+                pass
+            return False
     
     def close(self) -> None:
         """Close database connection."""

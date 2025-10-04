@@ -57,6 +57,7 @@ class FilePathMatcher:
         self.similarity_threshold = similarity_threshold
         self.music_files: List[MusicFile] = []
         self.tracks: List[TrackRecord] = []
+        self.duplicate_files_resolved = 0
     
     def load_csv_tracks(self, csv_path: str) -> List[TrackRecord]:
         """Load tracks from the input CSV file"""
@@ -223,10 +224,11 @@ class FilePathMatcher:
         return max_similarity
     
     def match_tracks_to_files(self) -> int:
-        """Match tracks to music files based on similarity"""
-        matched_count = 0
-        
+        """Match tracks to music files based on similarity with duplicate resolution"""
         print("Matching tracks to files...")
+        
+        # Step 1: Collect all potential matches
+        potential_matches = {}  # file_path -> [(track_index, confidence_score)]
         
         for i, track in enumerate(self.tracks):
             if (i + 1) % 50 == 0:
@@ -243,20 +245,48 @@ class FilePathMatcher:
                     best_match = music_file
             
             if best_match:
-                track.matched_file_path = best_match.file_path
-                track.confidence_score = best_similarity
-                matched_count += 1
-                
-                # Optional: Remove matched file from future searches to avoid duplicates
-                # self.music_files.remove(best_match)
+                file_path = best_match.file_path
+                if file_path not in potential_matches:
+                    potential_matches[file_path] = []
+                potential_matches[file_path].append((i, best_similarity))
         
-        print(f"Successfully matched {matched_count}/{len(self.tracks)} tracks")
+        # Step 2: Resolve duplicates - keep only the highest confidence match for each file
+        matched_count = 0
+        self.duplicate_files_resolved = 0
+        
+        for file_path, matches in potential_matches.items():
+            if len(matches) > 1:
+                # Multiple tracks matched to the same file - keep only the best one
+                matches.sort(key=lambda x: x[1], reverse=True)  # Sort by confidence, highest first
+                best_match = matches[0]
+                self.duplicate_files_resolved += len(matches) - 1
+                
+                # Set the match for the best track only
+                track_index, confidence = best_match
+                self.tracks[track_index].matched_file_path = file_path
+                self.tracks[track_index].confidence_score = confidence
+                matched_count += 1
+            else:
+                # Single match - no conflict
+                track_index, confidence = matches[0]
+                self.tracks[track_index].matched_file_path = file_path
+                self.tracks[track_index].confidence_score = confidence
+                matched_count += 1
+        
+        duplicate_msg = ""
+        if self.duplicate_files_resolved > 0:
+            duplicate_msg = f" ({self.duplicate_files_resolved} duplicate file matches resolved)"
+        
+        print(f"Successfully matched {matched_count}/{len(self.tracks)} tracks{duplicate_msg}")
         return matched_count
     
     def export_results(self, output_path: str) -> None:
-        """Export results to CSV file (only matched tracks)"""
+        """Export results to CSV file (only matched tracks, sorted by confidence)"""
         # Filter to only matched tracks
         matched_tracks = [track for track in self.tracks if track.matched_file_path]
+        
+        # Sort by confidence score (highest first) - same order as in the report
+        matched_tracks.sort(key=lambda t: t.confidence_score, reverse=True)
         
         with open(output_path, 'w', encoding='utf-8-sig', newline='') as file:
             writer = csv.writer(file)
@@ -264,7 +294,7 @@ class FilePathMatcher:
             # Write header
             writer.writerow(['rekordboxId', 'artist', 'song title', 'file path'])
             
-            # Write data (only matched tracks)
+            # Write data (only matched tracks, sorted by confidence)
             for track in matched_tracks:
                 writer.writerow([
                     track.rekordbox_id,
@@ -273,7 +303,7 @@ class FilePathMatcher:
                     track.matched_file_path
                 ])
         
-        print(f"Results exported to: {output_path} ({len(matched_tracks)} matched tracks)")
+        print(f"Results exported to: {output_path} ({len(matched_tracks)} matched tracks, sorted by confidence)")
     
     def print_match_summary(self) -> None:
         """Print a summary of matching results"""
@@ -286,6 +316,9 @@ class FilePathMatcher:
         print(f"  Matched: {matched_tracks}")
         print(f"  Unmatched: {unmatched_tracks}")
         print(f"  Match rate: {matched_tracks/total_tracks*100:.1f}%")
+        
+        if self.duplicate_files_resolved > 0:
+            print(f"  Duplicate file matches resolved: {self.duplicate_files_resolved}")
         
         if unmatched_tracks > 0:
             print(f"\nAll unmatched tracks:")
@@ -324,7 +357,12 @@ class FilePathMatcher:
             file.write(f"- **Total Tracks**: {total_tracks}\n")
             file.write(f"- **Successfully Matched**: {matched_count}\n")
             file.write(f"- **Unmatched**: {unmatched_count}\n")
-            file.write(f"- **Match Rate**: {matched_count/total_tracks*100:.1f}%\n\n")
+            file.write(f"- **Match Rate**: {matched_count/total_tracks*100:.1f}%\n")
+            
+            if self.duplicate_files_resolved > 0:
+                file.write(f"- **Duplicate File Matches Resolved**: {self.duplicate_files_resolved}\n")
+            
+            file.write("\n")
             
             # Confidence distribution
             if matched_tracks:
@@ -360,6 +398,10 @@ class FilePathMatcher:
             
             # Recommendations
             file.write("## Recommendations\n\n")
+            
+            if self.duplicate_files_resolved > 0:
+                file.write(f"- **{self.duplicate_files_resolved} duplicate file conflicts resolved**: When multiple tracks matched the same file, only the track with the highest confidence score was kept\n")
+            
             if unmatched_count > 0:
                 if unmatched_count / total_tracks > 0.3:
                     file.write("- **High number of unmatched tracks**: Consider lowering the similarity threshold (e.g., --similarity 0.4)\n")

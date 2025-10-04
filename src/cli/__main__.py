@@ -2,6 +2,7 @@
 import sys
 import click
 from src.cli.export_command import export_command
+from src.cli.link_local_command import link_local
 
 
 @click.group()
@@ -11,8 +12,9 @@ def cli():
     pass
 
 
-# Add the export command to the CLI group
+# Add commands to the CLI group
 cli.add_command(export_command)
+cli.add_command(link_local)
 
 
 def main():

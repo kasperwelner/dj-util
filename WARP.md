@@ -104,6 +104,39 @@ python3 file_path_matcher.py -i tracks.csv -s ~/Music -o results.csv --report-pa
 python3 file_path_matcher.py -i test_tracks.csv -s test_music -o test_results.csv
 ```
 
+### Link Local Files
+```bash
+# Dry-run (preview changes) - ALWAYS DO THIS FIRST
+python -m src.cli link-local --csv matched_tracks.csv
+
+# Apply changes with ID matching
+python -m src.cli link-local --csv matched_tracks.csv --apply
+
+# Use fuzzy matching (no IDs required)
+python -m src.cli link-local --csv tracks.csv --no-id-match --apply
+
+# Test with limited rows first
+python -m src.cli link-local --csv tracks.csv --apply --limit 5
+
+# Lower threshold for more fuzzy matches
+python -m src.cli link-local --csv tracks.csv --no-id-match --match-threshold 0.65 --apply
+
+# Convert files to FLAC while linking (requires ffmpeg)
+python -m src.cli link-local --csv tracks.csv --convert-to flac --apply
+
+# Convert to WAV with custom output directory
+python -m src.cli link-local --csv tracks.csv --convert-to wav --conversion-dir ~/Music/Converted --apply
+
+# Convert only MP3 and AAC files to FLAC (filtering by source format)
+python -m src.cli link-local --csv tracks.csv --convert-to flac --convert-from mp3 --convert-from aac --apply
+
+# Convert to AIFF (Apple/Mac format)
+python -m src.cli link-local --csv tracks.csv --convert-to aiff --apply
+
+# Skip automatic re-analysis (keep existing beat grids)
+python -m src.cli link-local --csv tracks.csv --apply --skip-reanalyze
+```
+
 ## Architecture Overview
 
 ### Core Components
@@ -188,6 +221,7 @@ Standalone tool for matching CSV tracks with local music files:
 - `click>=8.0` - CLI framework
 - `selenium` - Web automation (bandcamp features)
 - `pytest`, `black`, `ruff`, `mypy` - Development tools
+- `ffmpeg` (optional) - Audio format conversion for link-local feature
 
 ## Important Notes
 
@@ -196,3 +230,6 @@ Standalone tool for matching CSV tracks with local music files:
 - Streaming track detection uses multiple heuristics (empty paths, service names)
 - Tag IDs are stored as strings for database consistency
 - Bandcamp automation requires manual login in browser first
+- Audio conversion requires ffmpeg: `brew install ffmpeg` (macOS) or see https://ffmpeg.org/download.html
+- Supported conversion formats: WAV, AIFF, FLAC, MP3 (320k), AAC (256k), ALAC
+- Use `--convert-from` to selectively convert only specific source formats
