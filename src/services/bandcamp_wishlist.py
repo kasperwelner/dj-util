@@ -5,8 +5,12 @@ Automatically adds tracks from a CSV to your Bandcamp wishlist.
 
 import csv
 import os
+import re
 import time
+from dataclasses import dataclass
 from datetime import datetime
+from difflib import SequenceMatcher
+from typing import List, Optional
 from urllib.parse import quote_plus
 
 from selenium import webdriver
@@ -16,6 +20,15 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
+
+@dataclass
+class BandcampSearchResult:
+    """Represents a search result from Bandcamp."""
+    artist: str
+    title: str
+    url: str
+    confidence: float = 0.0
+
 
 LOGIN_URL = "https://bandcamp.com/login"
 
@@ -41,6 +54,8 @@ class BandcampWishlistAutomator:
         self.driver = None
         self.wait = None
         self.processed_ids = set()
+        # Matching threshold for search results
+        self.match_threshold = 0.6
 
     def is_owned(self) -> bool:
         """Return True if the visible page shows that the user owns the track."""
@@ -154,6 +169,176 @@ class BandcampWishlistAutomator:
                     continue
         except:
             pass  # No cookie banner found, continue
+    
+    def _clean_text(self, text: str) -> str:
+        """Clean text for matching (same logic as file_path_matcher).
+        
+        Args:
+            text: Text to clean
+            
+        Returns:
+            Cleaned lowercase text
+        """
+        if not text:
+            return ""
+        
+        # Remove content in parentheses and brackets
+        text = re.sub(r'\([^)]*\)', '', text)
+        text = re.sub(r'\[[^\]]*\]', '', text)
+        
+        # Remove special characters (keep spaces for word matching)
+        text = re.sub(r'[^\w\s]', '', text)
+        
+        # Normalize whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        return text.lower()
+    
+    def _calculate_text_similarity(self, text1: str, text2: str) -> float:
+        """Calculate similarity between two text strings.
+        
+        Uses same approach as file_path_matcher:
+        70% sequential similarity + 30% word overlap similarity.
+        
+        Args:
+            text1: First text to compare
+            text2: Second text to compare
+            
+        Returns:
+            Similarity score (0.0-1.0)
+        """
+        clean1 = self._clean_text(text1)
+        clean2 = self._clean_text(text2)
+        
+        if not clean1 or not clean2:
+            return 0.0
+        
+        # Sequential similarity (70% weight)
+        sequence_sim = SequenceMatcher(None, clean1, clean2).ratio()
+        
+        # Word overlap similarity (30% weight)
+        words1 = set(clean1.split())
+        words2 = set(clean2.split())
+        
+        if words1 and words2:
+            intersection = len(words1.intersection(words2))
+            union = len(words1.union(words2))
+            word_sim = intersection / union if union > 0 else 0.0
+        else:
+            word_sim = 0.0
+        
+        # Combined score
+        return (sequence_sim * 0.7) + (word_sim * 0.3)
+    
+    def _calculate_track_similarity(
+        self, 
+        target_artist: str, 
+        target_title: str,
+        result_artist: str, 
+        result_title: str
+    ) -> float:
+        """Calculate overall similarity between target track and search result.
+        
+        Requires minimum title similarity (like file_path_matcher) and 
+        weights artist/title matching separately.
+        
+        Args:
+            target_artist: Artist we're looking for
+            target_title: Title we're looking for  
+            result_artist: Artist from search result
+            result_title: Title from search result
+            
+        Returns:
+            Similarity score (0.0-1.0)
+        """
+        # Title similarity (required minimum like file_path_matcher)
+        title_sim = self._calculate_text_similarity(target_title, result_title)
+        if title_sim < 0.3:  # Minimum title similarity threshold
+            return 0.0  # No match if title doesn't have partial similarity
+        
+        # Artist similarity
+        artist_sim = self._calculate_text_similarity(target_artist, result_artist)
+        
+        # Combined score: 60% title + 40% artist (title is more distinctive)
+        return (title_sim * 0.6) + (artist_sim * 0.4)
+    
+    def _extract_search_results(self) -> List[BandcampSearchResult]:
+        """Extract all search results from the current Bandcamp search page.
+        
+        Returns:
+            List of BandcampSearchResult objects
+        """
+        results = []
+        
+        try:
+            # Find all search result elements
+            search_results = self.driver.find_elements(By.CSS_SELECTOR, ".searchresult")
+            
+            for result_elem in search_results:
+                try:
+                    # Get the track link
+                    track_link = result_elem.find_element(By.CSS_SELECTOR, "a.artcont")
+                    track_url = track_link.get_attribute("href")
+                    
+                    if not track_url:
+                        continue
+                    
+                    # Extract artist and title from the search result
+                    # Bandcamp typically shows: "Artist Name - Song Title"
+                    artist = ""
+                    title = ""
+                    
+                    try:
+                        # Try to get artist from dedicated element
+                        artist_elem = result_elem.find_element(By.CSS_SELECTOR, ".subhead")
+                        artist = artist_elem.text.strip()
+                        
+                        # Remove "by " prefix if present
+                        if artist.lower().startswith("by "):
+                            artist = artist[3:].strip()
+                    except NoSuchElementException:
+                        pass
+                    
+                    try:
+                        # Try to get title from main heading
+                        title_elem = result_elem.find_element(By.CSS_SELECTOR, ".heading")
+                        title = title_elem.text.strip()
+                    except NoSuchElementException:
+                        pass
+                    
+                    # Fallback: parse from combined text if we didn't get both
+                    if not artist or not title:
+                        try:
+                            # Get combined text and try to split
+                            combined_text = result_elem.find_element(By.CSS_SELECTOR, ".heading").text.strip()
+                            if " - " in combined_text:
+                                parts = combined_text.split(" - ", 1)
+                                if len(parts) == 2:
+                                    if not artist:
+                                        artist = parts[0].strip()
+                                    if not title:
+                                        title = parts[1].strip()
+                            elif not title:
+                                title = combined_text
+                        except NoSuchElementException:
+                            pass
+                    
+                    # Only add if we have at least a title
+                    if title:
+                        results.append(BandcampSearchResult(
+                            artist=artist,
+                            title=title,
+                            url=track_url
+                        ))
+                        
+                except Exception as e:
+                    # Skip problematic results
+                    continue
+                    
+        except Exception as e:
+            print(f"  ⚠ Error extracting search results: {e}")
+            
+        return results
 
     def login(self) -> bool:
         """Login to Bandcamp."""
@@ -251,7 +436,7 @@ class BandcampWishlistAutomator:
             writer.writerow([track_id, artist, title, status, url, notes, timestamp])
 
     def search_and_wishlist_track(self, track_id: str, artist: str, title: str):
-        """Search for a track and add it to wishlist."""
+        """Search for a track and add it to wishlist using intelligent matching."""
         # Skip if already processed
         if track_id in self.processed_ids:
             print(f"⊘ Skipping {artist} - {title} (already processed)")
@@ -271,23 +456,52 @@ class BandcampWishlistAutomator:
             # Dismiss cookie banner if it appears
             self.dismiss_cookies()
 
-            # Look for track results
+            # Extract all search results
             try:
-                # Find the first TRACK result - look for track link specifically
-                track_link = self.wait.until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, ".searchresult[data-search] a.artcont, .searchresult a.artcont"))
+                # Wait for search results to load
+                self.wait.until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, ".searchresult"))
                 )
-                track_url = track_link.get_attribute("href")
-
-                # Scroll into view to avoid menu bar overlap
-                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", track_link)
-                time.sleep(0.5)
-
-                # Click to go to track page - try regular click, fallback to JavaScript click
-                try:
-                    track_link.click()
-                except:
-                    self.driver.execute_script("arguments[0].click();", track_link)
+                time.sleep(0.5)  # Let results fully load
+                
+                # Get all search results
+                search_results = self._extract_search_results()
+                
+                if not search_results:
+                    print("  ✗ No search results found")
+                    self.save_progress(track_id, artist, title, "not_found", "", "No search results")
+                    return
+                
+                print(f"  • Found {len(search_results)} search result(s)")
+                
+                # Calculate similarity scores and find best match
+                best_match = None
+                best_similarity = 0.0
+                
+                for result in search_results:
+                    similarity = self._calculate_track_similarity(
+                        artist, title,
+                        result.artist, result.title
+                    )
+                    result.confidence = similarity
+                    
+                    if similarity > best_similarity and similarity >= self.match_threshold:
+                        best_similarity = similarity
+                        best_match = result
+                
+                if not best_match:
+                    print(f"  ⊘ No good matches found (threshold: {self.match_threshold})")
+                    # Show some results for debugging
+                    for i, result in enumerate(search_results[:3]):
+                        print(f"    [{i+1}] {result.artist} - {result.title} (confidence: {result.confidence:.3f})")
+                    self.save_progress(track_id, artist, title, "no_match", "", f"No matches above threshold {self.match_threshold}")
+                    return
+                
+                # Show match info
+                print(f"  ✓ Best match: {best_match.artist} - {best_match.title} (confidence: {best_similarity:.3f})")
+                
+                # Navigate to the best match
+                self.driver.get(best_match.url)
                 time.sleep(1.5)
 
                 # Ensure the wishlist control is present if available (non-fatal)
@@ -299,14 +513,16 @@ class BandcampWishlistAutomator:
                 # 1) Check if owned (visible UI only)
                 if self.is_owned():
                     print("  • Status: OWNED")
-                    self.save_progress(track_id, artist, title, "owned", track_url, "Already purchased")
+                    self.save_progress(track_id, artist, title, "owned", best_match.url, 
+                                     f"Already purchased (confidence: {best_similarity:.3f})")
                     self.processed_ids.add(track_id)
                     return
 
                 # 2) Check if already in wishlist
                 if self.is_in_wishlist():
                     print("  • Status: Already in wishlist")
-                    self.save_progress(track_id, artist, title, "already_wishlisted", track_url)
+                    self.save_progress(track_id, artist, title, "already_wishlisted", best_match.url,
+                                     f"Already in wishlist (confidence: {best_similarity:.3f})")
                     self.processed_ids.add(track_id)
                     return
 
@@ -326,15 +542,18 @@ class BandcampWishlistAutomator:
                             )
                         )
                         print("  • Status: Added to wishlist")
-                        self.save_progress(track_id, artist, title, "added", track_url)
+                        self.save_progress(track_id, artist, title, "added", best_match.url,
+                                         f"Added to wishlist (confidence: {best_similarity:.3f})")
                         self.processed_ids.add(track_id)
                     except TimeoutException:
                         print("  ? Could not verify wishlist addition")
-                        self.save_progress(track_id, artist, title, "uncertain", track_url, "Click registered but not verified")
+                        self.save_progress(track_id, artist, title, "uncertain", best_match.url, 
+                                         f"Click registered but not verified (confidence: {best_similarity:.3f})")
 
                 except NoSuchElementException:
                     print("  ✗ Could not find wishlist button")
-                    self.save_progress(track_id, artist, title, "no_wishlist_button", track_url, "Wishlist button not found")
+                    self.save_progress(track_id, artist, title, "no_wishlist_button", best_match.url, 
+                                     f"Wishlist button not found (confidence: {best_similarity:.3f})")
 
             except TimeoutException:
                 print("  ✗ No search results found")
