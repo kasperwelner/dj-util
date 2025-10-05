@@ -3,8 +3,8 @@ import csv
 import os
 from pathlib import Path
 from typing import List, Optional
-from src.models.track import Track
-from src.models.csv_export import CSVExport
+from models.track import Track
+from models.csv_export import CSVExport
 
 
 class CSVExporter:

@@ -1,8 +1,8 @@
 """TagSelector service for interactive tag selection."""
 import sys
 from typing import List, Optional, Set
-from src.models.tag import MyTag
-from src.models.tag_selection import TagSelection
+from models.tag import MyTag
+from models.tag_selection import TagSelection
 
 
 class TagSelector:

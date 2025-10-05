@@ -1,7 +1,7 @@
 """TagSelection model for managing user tag selection."""
 from dataclasses import dataclass, field
 from typing import List, Set, Optional
-from src.models.tag import MyTag
+from models.tag import MyTag
 
 
 @dataclass

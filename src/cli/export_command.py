@@ -3,16 +3,16 @@ import sys
 from pathlib import Path
 from typing import Optional
 import click
-from src.services.rekordbox import RekordboxAdapter
-from src.services.tag_selector import TagSelector
-from src.services.csv_exporter import CSVExporter
-from src.lib.validators import (
+from services.rekordbox import RekordboxAdapter
+from services.tag_selector import TagSelector
+from services.csv_exporter import CSVExporter
+from lib.validators import (
     validate_database_path,
     validate_output_path,
     validate_limit,
     validate_unicode_support
 )
-from src.lib.progress import (
+from lib.progress import (
     ProgressIndicator,
     format_track_count,
     show_spinner

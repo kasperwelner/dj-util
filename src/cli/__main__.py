@@ -1,20 +1,44 @@
-"""Main entry point for the Rekordbox export CLI."""
+"""Main entry point for the DJ Tool CLI."""
 import sys
+
 import click
-from src.cli.export_command import export_command
-from src.cli.link_local_command import link_local
+from importlib.metadata import version, PackageNotFoundError
+
+from cli.export_command import export_command
+from cli.link_local_command import link_local
+from cli.bandcamp_command import bandcamp_wishlist_add
+from cli.match_files_command import match_files
+
+
+def _get_version() -> str:
+    """Get the package version."""
+    try:
+        return version("dj-tool")
+    except PackageNotFoundError:
+        return "0.1.0-dev"
 
 
 @click.group()
-@click.version_option(version='1.0.0', prog_name='rekordbox-tools')
+@click.version_option(version=_get_version(), prog_name='dj-tool')
 def cli():
-    """Rekordbox tools for managing and exporting your music library."""
+    """DJ Tool Suite for Rekordbox and Bandcamp.
+
+    A comprehensive toolset for managing your Rekordbox library:
+
+    \b
+    • Export streaming tracks filtered by tags
+    • Link local files to replace streaming tracks
+    • Match CSV tracks with local music files
+    • Automate Bandcamp wishlist additions
+    """
     pass
 
 
-# Add commands to the CLI group
-cli.add_command(export_command)
-cli.add_command(link_local)
+# Register all commands
+cli.add_command(export_command, name="rekordbox-export")
+cli.add_command(link_local, name="rekordbox-link-local")
+cli.add_command(match_files, name="match-files")
+cli.add_command(bandcamp_wishlist_add, name="bandcamp-wishlist-add")
 
 
 def main():

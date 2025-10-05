@@ -2,8 +2,8 @@
 import click
 import sys
 from pathlib import Path
-from src.services.rekordbox import RekordboxAdapter
-from src.services.link_local_service import LinkLocalService
+from services.rekordbox import RekordboxAdapter
+from services.link_local_service import LinkLocalService
 
 
 @click.command(name="link-local")
