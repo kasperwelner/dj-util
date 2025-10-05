@@ -357,7 +357,7 @@ class BandcampWishlistAutomator:
 
         tracks = []
         empty_lines_skipped = 0
-        with open(input_csv, "r", encoding="utf-8") as f:
+        with open(input_csv, "r", encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 # Skip empty lines (rows where all required fields are empty)
