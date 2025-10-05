@@ -2,10 +2,10 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
-from src.lib.csv_parser import CSVParser, TrackMapping
-from src.lib.fuzzy_matcher import FuzzyMatcher
-from src.services.rekordbox import RekordboxAdapter
-from src.services.audio_converter import AudioConverter, ConversionResult
+from lib.csv_parser import CSVParser, TrackMapping
+from lib.fuzzy_matcher import FuzzyMatcher
+from services.rekordbox import RekordboxAdapter
+from services.audio_converter import AudioConverter, ConversionResult
 
 
 @dataclass

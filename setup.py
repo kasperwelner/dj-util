@@ -5,13 +5,13 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="rekordbox",
+    name="dj-tool",
     version="0.1.0",
     author="DJ Tools",
-    description="Export Rekordbox streaming tracks filtered by tags to CSV",
+    description="DJ Tool Suite for Rekordbox management (export, link local files with optional conversion, file matching, and Bandcamp wishlist automation)",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/rekordbox",
+    url="https://github.com/yourusername/dj-tool",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     classifiers=[
@@ -28,6 +28,8 @@ setup(
     install_requires=[
         "pyrekordbox>=0.3.0",
         "click>=8.0",
+        "selenium>=4.0.0",
+        "webdriver-manager>=4.0.0",
     ],
     extras_require={
         "dev": [
@@ -41,7 +43,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "rekordbox=cli.export_command:main",
+            "dj-tool=cli.__main__:main",
         ],
     },
 )

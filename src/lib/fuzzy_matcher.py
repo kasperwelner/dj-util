@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import List, Optional
-from src.models.track import Track
+from models.track import Track
 
 
 @dataclass

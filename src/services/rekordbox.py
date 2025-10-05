@@ -2,8 +2,8 @@
 import os
 from pathlib import Path
 from typing import List, Optional, Set
-from src.models.tag import MyTag
-from src.models.track import Track
+from models.tag import MyTag
+from models.track import Track
 
 try:
     from pyrekordbox import Rekordbox6Database

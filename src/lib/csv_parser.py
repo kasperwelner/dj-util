@@ -3,7 +3,7 @@ import csv
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Dict, Optional
-from src.lib.path_utils import normalize_path
+from lib.path_utils import normalize_path
 
 
 @dataclass
