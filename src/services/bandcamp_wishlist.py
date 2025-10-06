@@ -357,6 +357,8 @@ class BandcampWishlistAutomator:
     def _is_track_result(self, result_elem) -> bool:
         """Determine if a search result represents a track (not album/artist).
         
+        Based on actual Bandcamp HTML structure observed via browser inspection.
+        
         Args:
             result_elem: Selenium WebElement for the search result
             
@@ -364,54 +366,74 @@ class BandcampWishlistAutomator:
             True if this appears to be a track result
         """
         try:
-            # Method 1: Check for track-specific indicators in data attributes
-            data_search = result_elem.get_attribute("data-search")
-            if data_search:
-                # Bandcamp uses data-search attribute to indicate result types
-                # Track results typically have "t" (track) in the data-search attribute
-                return "t" in data_search.lower()
-            
-            # Method 2: Look for track-specific CSS classes or elements
-            # Track results often have different styling than album results
+            # Method 1: Look for explicit TRACK/ALBUM label elements (most reliable)
+            # Bandcamp has separate StaticText elements with "TRACK" or "ALBUM" labels
             try:
-                # Check if URL pattern suggests it's a track
-                track_link = result_elem.find_element(By.CSS_SELECTOR, "a.artcont")
-                track_url = track_link.get_attribute("href")
+                # Look for child elements containing exactly "TRACK" or "ALBUM"
+                label_elements = result_elem.find_elements(By.XPATH, ".//*[text()='TRACK' or text()='ALBUM']")
                 
-                if track_url:
-                    # Track URLs typically contain "/track/" while album URLs contain "/album/"
-                    if "/track/" in track_url:
+                for elem in label_elements:
+                    label_text = elem.text.strip().upper()
+                    if label_text == "ALBUM":
+                        return False
+                    elif label_text == "TRACK":
                         return True
-                    elif "/album/" in track_url:
-                        return False
-                    # Artist pages typically don't have /track/ or /album/
-                    elif track_url.count("/") <= 3:  # e.g., https://artist.bandcamp.com/
-                        return False
-            except NoSuchElementException:
+                        
+            except Exception:
                 pass
             
-            # Method 3: Check result type indicators in the UI
+            # Method 2: Check the full text for TRACK/ALBUM patterns
             try:
-                # Look for genre tags or other indicators
-                genre_elem = result_elem.find_element(By.CSS_SELECTOR, ".genre")
-                genre_text = genre_elem.text.strip().lower() if genre_elem else ""
+                result_text = result_elem.text.strip()
+                lines = result_text.split('\n')
                 
-                # Albums often show genre info, tracks less commonly
-                # But this is not a reliable indicator on its own
-            except NoSuchElementException:
+                for line in lines:
+                    line = line.strip().upper()
+                    if line == "ALBUM":
+                        return False
+                    elif line == "TRACK":
+                        return True
+                        
+                # Also check if text starts with these labels
+                result_upper = result_text.upper()
+                if result_upper.startswith("ALBUM"):
+                    return False
+                elif result_upper.startswith("TRACK"):
+                    return True
+                        
+            except Exception:
                 pass
             
-            # Method 4: Check for album-specific indicators (exclude these)
+            # Method 3: Look for URL patterns
             try:
-                # Look for text that suggests this is an album
+                # Find any link in the result and check its URL
+                links = result_elem.find_elements(By.TAG_NAME, "a")
+                for link in links:
+                    track_url = link.get_attribute("href")
+                    if track_url:
+                        # Track URLs typically contain "/track/" while album URLs contain "/album/"
+                        if "/track/" in track_url:
+                            return True
+                        elif "/album/" in track_url:
+                            return False
+                            
+            except Exception:
+                pass
+            
+            # Method 4: Check for album-specific text indicators (exclude these)
+            try:
                 result_text = result_elem.text.lower()
                 
-                # Common album indicators (be conservative)
+                # Look for patterns like "X tracks, Y minutes" which indicate albums
+                import re
+                if re.search(r'\d+\s+tracks?,\s*\d+\s+minutes?', result_text):
+                    return False
+                    
+                # Common album indicators
                 album_indicators = [
                     "full album",
                     "lp",
                     "ep", 
-                    "album",
                     "compilation",
                     "discography"
                 ]
@@ -423,8 +445,16 @@ class BandcampWishlistAutomator:
             except Exception:
                 pass
             
-            # Method 5: Default heuristic - if we can't determine, assume it's a track
-            # This is safer for our use case since we want to be inclusive of tracks
+            # Method 5: Check data attributes as fallback
+            try:
+                data_search = result_elem.get_attribute("data-search")
+                if data_search:
+                    # Track results might have "t" in data-search attribute
+                    return "t" in data_search.lower()
+            except Exception:
+                pass
+            
+            # Default: assume it's a track (be inclusive)
             return True
             
         except Exception:
