@@ -92,9 +92,13 @@ class FilePathMatcher:
 
     def _clean_filename(self, filename: str) -> str:
         """Clean filename for better matching."""
-        # Remove file extension
+        # Note: file extension should already be removed by Path.stem,
+        # but handle it just in case
+        # Only remove if it looks like a file extension (3-4 chars after final dot)
         if '.' in filename:
-            filename = filename.rsplit('.', 1)[0]
+            parts = filename.rsplit('.', 1)
+            if len(parts) == 2 and len(parts[1]) <= 4 and parts[1].isalpha():
+                filename = parts[0]
 
         # Remove common patterns that interfere with matching
         patterns_to_remove = [
