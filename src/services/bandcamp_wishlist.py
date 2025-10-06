@@ -279,10 +279,12 @@ class BandcampWishlistAutomator:
             search_results = self.driver.find_elements(By.CSS_SELECTOR, ".searchresult")
             total_results = len(search_results)
             
-            for result_elem in search_results:
+            for i, result_elem in enumerate(search_results):
                 try:
                     # Check if this is a track result (not album/artist)
-                    if not self._is_track_result(result_elem):
+                    is_track = self._is_track_result(result_elem)
+                    
+                    if not is_track:
                         filtered_results += 1
                         continue
                     
