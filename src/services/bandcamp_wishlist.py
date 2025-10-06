@@ -263,19 +263,29 @@ class BandcampWishlistAutomator:
         return (title_sim * 0.6) + (artist_sim * 0.4)
     
     def _extract_search_results(self) -> List[BandcampSearchResult]:
-        """Extract all search results from the current Bandcamp search page.
+        """Extract track-only search results from the current Bandcamp search page.
+        
+        Filters to only include individual tracks, excluding albums.
         
         Returns:
-            List of BandcampSearchResult objects
+            List of BandcampSearchResult objects (tracks only)
         """
         results = []
+        total_results = 0
+        filtered_results = 0
         
         try:
             # Find all search result elements
             search_results = self.driver.find_elements(By.CSS_SELECTOR, ".searchresult")
+            total_results = len(search_results)
             
             for result_elem in search_results:
                 try:
+                    # Check if this is a track result (not album/artist)
+                    if not self._is_track_result(result_elem):
+                        filtered_results += 1
+                        continue
+                    
                     # Get the track link
                     track_link = result_elem.find_element(By.CSS_SELECTOR, "a.artcont")
                     track_url = track_link.get_attribute("href")
@@ -334,11 +344,92 @@ class BandcampWishlistAutomator:
                 except Exception as e:
                     # Skip problematic results
                     continue
+            
+            # Debug info about filtering
+            if filtered_results > 0:
+                print(f"  • Filtered out {filtered_results} non-track results ({len(results)} tracks remaining)")
                     
         except Exception as e:
             print(f"  ⚠ Error extracting search results: {e}")
             
         return results
+    
+    def _is_track_result(self, result_elem) -> bool:
+        """Determine if a search result represents a track (not album/artist).
+        
+        Args:
+            result_elem: Selenium WebElement for the search result
+            
+        Returns:
+            True if this appears to be a track result
+        """
+        try:
+            # Method 1: Check for track-specific indicators in data attributes
+            data_search = result_elem.get_attribute("data-search")
+            if data_search:
+                # Bandcamp uses data-search attribute to indicate result types
+                # Track results typically have "t" (track) in the data-search attribute
+                return "t" in data_search.lower()
+            
+            # Method 2: Look for track-specific CSS classes or elements
+            # Track results often have different styling than album results
+            try:
+                # Check if URL pattern suggests it's a track
+                track_link = result_elem.find_element(By.CSS_SELECTOR, "a.artcont")
+                track_url = track_link.get_attribute("href")
+                
+                if track_url:
+                    # Track URLs typically contain "/track/" while album URLs contain "/album/"
+                    if "/track/" in track_url:
+                        return True
+                    elif "/album/" in track_url:
+                        return False
+                    # Artist pages typically don't have /track/ or /album/
+                    elif track_url.count("/") <= 3:  # e.g., https://artist.bandcamp.com/
+                        return False
+            except NoSuchElementException:
+                pass
+            
+            # Method 3: Check result type indicators in the UI
+            try:
+                # Look for genre tags or other indicators
+                genre_elem = result_elem.find_element(By.CSS_SELECTOR, ".genre")
+                genre_text = genre_elem.text.strip().lower() if genre_elem else ""
+                
+                # Albums often show genre info, tracks less commonly
+                # But this is not a reliable indicator on its own
+            except NoSuchElementException:
+                pass
+            
+            # Method 4: Check for album-specific indicators (exclude these)
+            try:
+                # Look for text that suggests this is an album
+                result_text = result_elem.text.lower()
+                
+                # Common album indicators (be conservative)
+                album_indicators = [
+                    "full album",
+                    "lp",
+                    "ep", 
+                    "album",
+                    "compilation",
+                    "discography"
+                ]
+                
+                for indicator in album_indicators:
+                    if indicator in result_text:
+                        return False
+                        
+            except Exception:
+                pass
+            
+            # Method 5: Default heuristic - if we can't determine, assume it's a track
+            # This is safer for our use case since we want to be inclusive of tracks
+            return True
+            
+        except Exception:
+            # If we can't determine, err on the side of including it
+            return True
 
     def login(self) -> bool:
         """Login to Bandcamp."""
@@ -472,7 +563,13 @@ class BandcampWishlistAutomator:
                     self.save_progress(track_id, artist, title, "not_found", "", "No search results")
                     return
                 
-                print(f"  • Found {len(search_results)} search result(s)")
+                # Show filtering information
+                total_found = len(self.driver.find_elements(By.CSS_SELECTOR, ".searchresult"))
+                tracks_found = len(search_results)
+                if total_found > tracks_found:
+                    print(f"  • Found {tracks_found} track(s) from {total_found} total results")
+                else:
+                    print(f"  • Found {tracks_found} track(s)")
                 
                 # Calculate similarity scores and find best match
                 best_match = None
