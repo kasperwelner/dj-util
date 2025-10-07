@@ -53,10 +53,17 @@ class FilePathMatcher:
                 raise ValueError(f"CSV must contain columns: {required_cols}")
 
             for row in reader:
+                # Skip empty rows (where both artist and title are empty/blank)
+                artist = (row['artist'] or '').strip()
+                title = (row['title'] or '').strip()
+                
+                if not artist and not title:
+                    continue  # Skip this empty row
+                
                 track = TrackRecord(
                     rekordbox_id=row['id'],
-                    artist=row['artist'] or '',
-                    title=row['title'] or '',
+                    artist=artist,
+                    title=title,
                     streaming=row['streaming']
                 )
                 tracks.append(track)
